@@ -1,0 +1,1 @@
+﻿Function rv_d { docker run -i --rm -v ${PWD}://root ghcr.io/shouxulin/cs4414hw1 $args[0] $args[1] }
