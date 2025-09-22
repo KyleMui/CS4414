@@ -100,12 +100,22 @@ Node<T>* buildKD(std::vector<std::pair<T,int>>& items, int depth = 0)
 
     // Determine splitting axis for multi-D 
     size_t axis = depth % Embedding_T<T>::Dim();
+    size_t totalDim = Embedding_T<T>::Dim();
+
 
     // Sort items by the current axis
     std::sort(items.begin(), items.end(), [axis](const auto& a, const auto& b) {
-        if (getCoordinate(a.first, axis) != getCoordinate(b.first, axis)) {
-            return getCoordinate(a.first, axis) < getCoordinate(b.first, axis);
+        //Compare all dimensions
+        for (size_t i = 0; i < totalDim; ++i) {
+            size_t currentAxis = (axis + i) % totalDim;
+            float coordA = getCoordinate(a.first, currentAxis);
+            float coordB = getCoordinate(b.first, currentAxis);
+            
+            if (coordA != coordB) {
+                return coordA < coordB;
+            }
         }
+        // If all coordinates are equal, then use index as tie-breaker
         return a.second < b.second;
     });
 
@@ -114,10 +124,10 @@ Node<T>* buildKD(std::vector<std::pair<T,int>>& items, int depth = 0)
     size_t median_idx = (n - 1) / 2;
     auto median = items[median_idx];
 
-    // Create node and construct subtrees 
+    // Create the node and construct the subtrees 
     Node<T>* node = new Node<T>{median.first, median.second, nullptr, nullptr};
 
-    // Split items into left and right subarrays 
+    // Split items into the left and right subarrays 
     std::vector<std::pair<T, int>> left_items(items.begin(), items.begin() + median_idx);
     std::vector<std::pair<T, int>> right_items(items.begin() + median_idx + 1, items.end());
     node->left = buildKD(left_items, depth + 1);
