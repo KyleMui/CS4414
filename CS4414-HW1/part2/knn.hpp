@@ -5,6 +5,9 @@
 #include <nlohmann/json.hpp>
 #include <chrono>
 #include <queue>
+#include <algorithm>  
+#include <cmath>      
+#include <type_traits> 
 
 
 template <typename T, typename = void>
@@ -93,12 +96,33 @@ T Node<T>::queryEmbedding;
 template <typename T>
 Node<T>* buildKD(std::vector<std::pair<T,int>>& items, int depth = 0)
 {
-    /*
-    TODO: Implement this function to build a balanced KD-tree.
-    You should recursively construct the tree and return the root node.
-    For now, this is a stub that returns nullptr.
-    */
-    return nullptr;
+    if (items.empty()) return nullptr;
+
+    // Determine splitting axis for multi-D 
+    size_t axis = depth % Embedding_T<T>::Dim();
+
+    // Sort items by the current axis
+    std::sort(items.begin(), items.end(), [axis](const auto& a, const auto& b) {
+        if (getCoordinate(a.first, axis) != getCoordinate(b.first, axis)) {
+            return getCoordinate(a.first, axis) < getCoordinate(b.first, axis);
+        }
+        return a.second < b.second;
+    });
+
+    // Choose median as pivot element 
+    size_t n = items.size();
+    size_t median_idx = (n - 1) / 2;
+    auto median = items[median_idx];
+
+    // Create node and construct subtrees 
+    Node<T>* node = new Node<T>{median.first, median.second, nullptr, nullptr};
+
+    // Split items into left and right subarrays 
+    std::vector<std::pair<T, int>> left_items(items.begin(), items.begin() + median_idx);
+    std::vector<std::pair<T, int>> right_items(items.begin() + median_idx + 1, items.end());
+    node->left = buildKD(left_items, depth + 1);
+    node->right = buildKD(right_items, depth + 1);
+    return node;
 }
 
 template <typename T>
@@ -151,10 +175,43 @@ void knnSearch(Node<T> *node,
                int K,
                MaxHeap &heap)
 {
-    /*
-    TODO: Implement this function to perform k-nearest neighbors (k-NN) search on the KD-tree.
-    You should recursively traverse the tree and maintain a max-heap of the K closest points found so far.
-    For now, this is a stub that does nothing.
-    */
-    return;
+    if (!node) return;
+
+    float dist = Embedding_T<T>::distance(Node<T>::queryEmbedding, node->embedding);
+
+    // Maintain max-heap of size at most K 
+    if ((int)heap.size() < K) {
+        heap.push({dist, node->idx});
+    } else if (dist < heap.top().first) {
+        heap.pop();
+        heap.push({dist, node->idx});
+    }
+
+    // Determine splitting axis for multi-D
+    size_t axis = depth % Embedding_T<T>::Dim();
+
+    // Decide which subtree to search first
+    bool goLeft;
+    if constexpr (std::is_same_v<T, float>) {
+        goLeft = Node<T>::queryEmbedding < node->embedding;  // 1D case
+    } else {
+        goLeft = getCoordinate(Node<T>::queryEmbedding, axis) < getCoordinate(node->embedding, axis);  // Multi-D case
+    }
+    
+    Node<T>* near = goLeft ? node->left : node->right;
+    Node<T>* far = goLeft ? node->right : node->left;
+
+    knnSearch(near, depth + 1, K, heap);
+
+    // Check if we need to search the far subtree
+    float splitDist;
+    if constexpr (std::is_same_v<T, float>) {
+        splitDist = std::abs(Node<T>::queryEmbedding - node->embedding);  // 1D case
+    } else {
+        splitDist = std::abs(getCoordinate(Node<T>::queryEmbedding, axis) - getCoordinate(node->embedding, axis));  // Multi-D case
+    }
+    
+    if ((int)heap.size() < K || splitDist < heap.top().first) {
+        knnSearch(far, depth + 1, K, heap);
+    }
 }
