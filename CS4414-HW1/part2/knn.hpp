@@ -187,10 +187,10 @@ void knnSearch(Node<T> *node,
         heap.push({dist, node->idx});
     }
 
-    // Determine splitting axis for multi-D
+    // Determine the splitting axis for multi-D
     size_t axis = depth % Embedding_T<T>::Dim();
 
-    // Decide which subtree to search first
+    // Choose a subtree to search first
     bool goLeft;
     if constexpr (std::is_same_v<T, float>) {
         goLeft = Node<T>::queryEmbedding < node->embedding;  // 1D case
@@ -203,7 +203,7 @@ void knnSearch(Node<T> *node,
 
     knnSearch(near, depth + 1, K, heap);
 
-    // Check if we need to search the far subtree
+    // Search the far subtree if needed
     float splitDist;
     if constexpr (std::is_same_v<T, float>) {
         splitDist = std::abs(Node<T>::queryEmbedding - node->embedding);  // 1D case
